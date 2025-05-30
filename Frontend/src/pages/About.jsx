@@ -116,15 +116,15 @@ const About = () => {
 
   const team = [
     {
-      name: "Sarah Chen",
+      name: "Gachoki John",
       role: "Founder & CEO",
       bio: "Environmental scientist with 10+ years in sustainability and blockchain technology.",
       image: "/placeholder.svg?height=120&width=120",
     },
     {
-      name: "Marcus Rodriguez",
+      name: "Dennis Muriithi",
       role: "CTO",
-      bio: "Blockchain developer and former Tesla engineer passionate about green technology.",
+      bio: "Backend Developer Blockchain enthusiast passionate about green technology.",
       image: "/placeholder.svg?height=120&width=120",
     },
     {
