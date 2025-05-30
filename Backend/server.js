@@ -5,7 +5,7 @@ import morgan from "morgan"
 import compression from "compression"
 import rateLimit from "express-rate-limit"
 import dotenv from "dotenv"
-import connectDB from "./config/database.js"
+import { connectDB } from "./config/database.js"
 import errorHandler from "./middleware/errorHandler.js"
 
 // Import routes
@@ -19,14 +19,14 @@ dotenv.config()
 // Create Express app
 const app = express()
 
-// Connect to MongoDB
+// Connect to Database
 connectDB()
 
 // Security middleware
 app.use(helmet())
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:3000",
+    origin: process.env.FRONTEND_URL || "http://localhost:5173",
     credentials: true,
   }),
 )
@@ -55,9 +55,10 @@ if (process.env.NODE_ENV === "development") {
 app.get("/health", (req, res) => {
   res.status(200).json({
     status: "OK",
-    message: "Server is running",
+    message: "Server is running with Prisma",
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || "development",
+    database: "Connected via Prisma",
   })
 })
 
@@ -83,6 +84,7 @@ app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`)
   console.log(`📊 Environment: ${process.env.NODE_ENV || "development"}`)
   console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL || "http://localhost:5173"}`)
+  console.log(`🗄️  Database: Prisma ORM`)
 })
 
 export default app
