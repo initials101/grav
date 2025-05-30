@@ -1,46 +1,33 @@
-import { PrismaClient } from "@prisma/client"
+import mongoose from "mongoose"
 
-// Create a single instance of Prisma Client
-const prisma = new PrismaClient({
-  log: process.env.NODE_ENV === "development" ? ["query", "info", "warn", "error"] : ["error"],
-  errorFormat: "pretty",
-})
-
-// Handle Prisma Client connection
 const connectDB = async () => {
   try {
-    await prisma.$connect()
-    console.log("📦 Database connected successfully with Prisma")
+    const conn = await mongoose.connect(process.env.MONGODB_URI || "mongodb://localhost:27017/mern_stack", {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    })
 
-    // Test the connection
-    await prisma.$queryRaw`SELECT 1`
-    console.log("✅ Database connection test passed")
+    console.log(`📦 MongoDB Connected: ${conn.connection.host}`)
+
+    // Handle connection events
+    mongoose.connection.on("error", (err) => {
+      console.error("❌ MongoDB connection error:", err)
+    })
+
+    mongoose.connection.on("disconnected", () => {
+      console.log("📦 MongoDB disconnected")
+    })
+
+    // Graceful shutdown
+    process.on("SIGINT", async () => {
+      await mongoose.connection.close()
+      console.log("📦 MongoDB connection closed through app termination")
+      process.exit(0)
+    })
   } catch (error) {
-    console.error("❌ Database connection failed:", error.message)
+    console.error("❌ MongoDB connection failed:", error.message)
     process.exit(1)
   }
 }
 
-// Graceful shutdown
-const disconnectDB = async () => {
-  try {
-    await prisma.$disconnect()
-    console.log("📦 Database disconnected")
-  } catch (error) {
-    console.error("❌ Error disconnecting from database:", error.message)
-  }
-}
-
-// Handle process termination
-process.on("SIGINT", async () => {
-  await disconnectDB()
-  process.exit(0)
-})
-
-process.on("SIGTERM", async () => {
-  await disconnectDB()
-  process.exit(0)
-})
-
-export { prisma, connectDB, disconnectDB }
-export default prisma
+export default connectDB

@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken"
-import prisma from "../config/database.js"
+import User from "../models/User.model.js"
 import asyncHandler from "../utils/asyncHandler.js"
 import AppError from "../utils/AppError.js"
 
@@ -22,17 +22,7 @@ export const protect = asyncHandler(async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "fallback_secret")
 
     // Get user from token
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.id },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        isActive: true,
-      },
-    })
-
+    const user = await User.findById(decoded.id)
     if (!user) {
       return next(new AppError("No user found with this token", 401))
     }
@@ -64,17 +54,7 @@ export const optionalAuth = asyncHandler(async (req, res, next) => {
       const decoded = jwt.verify(token, process.env.JWT_SECRET || "fallback_secret")
 
       // Get user from token
-      const user = await prisma.user.findUnique({
-        where: { id: decoded.id },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-          isActive: true,
-        },
-      })
-
+      const user = await User.findById(decoded.id)
       if (user && user.isActive) {
         req.user = user
       }

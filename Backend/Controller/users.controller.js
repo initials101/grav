@@ -1,5 +1,5 @@
 import { validationResult } from "express-validator"
-import prisma from "../config/database.js"
+import User from "../models/User.model.js"
 import asyncHandler from "../utils/asyncHandler.js"
 import AppError from "../utils/AppError.js"
 
@@ -11,53 +11,30 @@ export const getUsers = asyncHandler(async (req, res, next) => {
   const limit = Number.parseInt(req.query.limit) || 10
   const skip = (page - 1) * limit
 
-  // Build where clause
-  const where = {}
+  // Build query
+  const query = {}
 
   // Filter by role
   if (req.query.role) {
-    where.role = req.query.role.toUpperCase()
+    query.role = req.query.role
   }
 
   // Filter by active status
   if (req.query.isActive !== undefined) {
-    where.isActive = req.query.isActive === "true"
+    query.isActive = req.query.isActive === "true"
   }
 
   // Search by name or email
   if (req.query.search) {
-    where.OR = [
-      { name: { contains: req.query.search, mode: "insensitive" } },
-      { email: { contains: req.query.search, mode: "insensitive" } },
+    query.$or = [
+      { name: { $regex: req.query.search, $options: "i" } },
+      { email: { $regex: req.query.search, $options: "i" } },
     ]
   }
 
-  const [users, total] = await Promise.all([
-    prisma.user.findMany({
-      where,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        avatar: true,
-        isActive: true,
-        lastLogin: true,
-        createdAt: true,
-        updatedAt: true,
-        _count: {
-          select: {
-            ownedProjects: true,
-            collaborations: true,
-          },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-      skip,
-      take: limit,
-    }),
-    prisma.user.count({ where }),
-  ])
+  const users = await User.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit)
+
+  const total = await User.countDocuments(query)
 
   res.status(200).json({
     success: true,
@@ -77,43 +54,7 @@ export const getUsers = asyncHandler(async (req, res, next) => {
 // @route   GET /api/users/:id
 // @access  Private
 export const getUser = asyncHandler(async (req, res, next) => {
-  const user = await prisma.user.findUnique({
-    where: { id: req.params.id },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-      avatar: true,
-      isActive: true,
-      lastLogin: true,
-      createdAt: true,
-      updatedAt: true,
-      ownedProjects: {
-        select: {
-          id: true,
-          name: true,
-          description: true,
-          status: true,
-          isPublic: true,
-          createdAt: true,
-        },
-      },
-      collaborations: {
-        select: {
-          role: true,
-          project: {
-            select: {
-              id: true,
-              name: true,
-              description: true,
-              status: true,
-            },
-          },
-        },
-      },
-    },
-  })
+  const user = await User.findById(req.params.id)
 
   if (!user) {
     return next(new AppError("User not found", 404))
@@ -141,33 +82,24 @@ export const updateProfile = asyncHandler(async (req, res, next) => {
 
   // Check if email is already taken by another user
   if (email && email !== req.user.email) {
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
-    })
+    const existingUser = await User.findOne({ email })
     if (existingUser) {
       return next(new AppError("Email is already taken", 400))
     }
   }
 
-  const user = await prisma.user.update({
-    where: { id: req.user.id },
-    data: {
-      ...(name && { name }),
-      ...(email && { email }),
-      ...(avatar !== undefined && { avatar }),
+  const user = await User.findByIdAndUpdate(
+    req.user.id,
+    {
+      name: name || req.user.name,
+      email: email || req.user.email,
+      avatar: avatar || req.user.avatar,
     },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-      avatar: true,
-      isActive: true,
-      lastLogin: true,
-      createdAt: true,
-      updatedAt: true,
+    {
+      new: true,
+      runValidators: true,
     },
-  })
+  )
 
   res.status(200).json({
     success: true,
@@ -184,44 +116,32 @@ export const updateProfile = asyncHandler(async (req, res, next) => {
 export const updateUser = asyncHandler(async (req, res, next) => {
   const { name, email, role, isActive } = req.body
 
-  const user = await prisma.user.findUnique({
-    where: { id: req.params.id },
-  })
-
+  const user = await User.findById(req.params.id)
   if (!user) {
     return next(new AppError("User not found", 404))
   }
 
   // Check if email is already taken by another user
   if (email && email !== user.email) {
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
-    })
+    const existingUser = await User.findOne({ email })
     if (existingUser) {
       return next(new AppError("Email is already taken", 400))
     }
   }
 
-  const updatedUser = await prisma.user.update({
-    where: { id: req.params.id },
-    data: {
-      ...(name && { name }),
-      ...(email && { email }),
-      ...(role && { role: role.toUpperCase() }),
-      ...(isActive !== undefined && { isActive }),
+  const updatedUser = await User.findByIdAndUpdate(
+    req.params.id,
+    {
+      name: name || user.name,
+      email: email || user.email,
+      role: role || user.role,
+      isActive: isActive !== undefined ? isActive : user.isActive,
     },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-      avatar: true,
-      isActive: true,
-      lastLogin: true,
-      createdAt: true,
-      updatedAt: true,
+    {
+      new: true,
+      runValidators: true,
     },
-  })
+  )
 
   res.status(200).json({
     success: true,
@@ -236,22 +156,18 @@ export const updateUser = asyncHandler(async (req, res, next) => {
 // @route   DELETE /api/users/:id
 // @access  Private/Admin
 export const deleteUser = asyncHandler(async (req, res, next) => {
-  const user = await prisma.user.findUnique({
-    where: { id: req.params.id },
-  })
+  const user = await User.findById(req.params.id)
 
   if (!user) {
     return next(new AppError("User not found", 404))
   }
 
   // Prevent admin from deleting themselves
-  if (user.id === req.user.id) {
+  if (user._id.toString() === req.user.id) {
     return next(new AppError("You cannot delete your own account", 400))
   }
 
-  await prisma.user.delete({
-    where: { id: req.params.id },
-  })
+  await User.findByIdAndDelete(req.params.id)
 
   res.status(200).json({
     success: true,
@@ -263,18 +179,16 @@ export const deleteUser = asyncHandler(async (req, res, next) => {
 // @route   GET /api/users/stats
 // @access  Private/Admin
 export const getUserStats = asyncHandler(async (req, res, next) => {
-  const [totalUsers, activeUsers, adminUsers, newUsers] = await Promise.all([
-    prisma.user.count(),
-    prisma.user.count({ where: { isActive: true } }),
-    prisma.user.count({ where: { role: "ADMIN" } }),
-    prisma.user.count({
-      where: {
-        createdAt: {
-          gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // 30 days ago
-        },
-      },
-    }),
-  ])
+  const totalUsers = await User.countDocuments()
+  const activeUsers = await User.countDocuments({ isActive: true })
+  const adminUsers = await User.countDocuments({ role: "admin" })
+
+  // Users registered in the last 30 days
+  const thirtyDaysAgo = new Date()
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+  const newUsers = await User.countDocuments({
+    createdAt: { $gte: thirtyDaysAgo },
+  })
 
   res.status(200).json({
     success: true,

@@ -1,7 +1,6 @@
 import jwt from "jsonwebtoken"
-import bcrypt from "bcryptjs"
 import { validationResult } from "express-validator"
-import prisma from "../config/database.js"
+import User from "../models/User.model.js"
 import asyncHandler from "../utils/asyncHandler.js"
 import AppError from "../utils/AppError.js"
 
@@ -25,48 +24,35 @@ export const register = asyncHandler(async (req, res, next) => {
   const { name, email, password } = req.body
 
   // Check if user already exists
-  const existingUser = await prisma.user.findUnique({
-    where: { email },
-  })
-
+  const existingUser = await User.findOne({ email })
   if (existingUser) {
     return next(new AppError("User already exists with this email", 400))
   }
 
-  // Hash password
-  const hashedPassword = await bcrypt.hash(password, 10)
-
   // Create user
-  const user = await prisma.user.create({
-    data: {
-      name,
-      email,
-      password: hashedPassword,
-    },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-      createdAt: true,
-      isActive: true,
-    },
+  const user = await User.create({
+    name,
+    email,
+    password,
   })
 
   // Generate token
-  const token = generateToken(user.id)
+  const token = generateToken(user._id)
 
   // Update last login
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { lastLogin: new Date() },
-  })
+  await user.updateLastLogin()
 
   res.status(201).json({
     success: true,
     message: "User registered successfully",
     data: {
-      user,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        createdAt: user.createdAt,
+      },
       token,
     },
   })
@@ -85,10 +71,7 @@ export const login = asyncHandler(async (req, res, next) => {
   const { email, password } = req.body
 
   // Check if user exists and get password
-  const user = await prisma.user.findUnique({
-    where: { email },
-  })
-
+  const user = await User.findOne({ email }).select("+password")
   if (!user) {
     return next(new AppError("Invalid credentials", 401))
   }
@@ -99,28 +82,28 @@ export const login = asyncHandler(async (req, res, next) => {
   }
 
   // Check password
-  const isPasswordCorrect = await bcrypt.compare(password, user.password)
+  const isPasswordCorrect = await user.comparePassword(password)
   if (!isPasswordCorrect) {
     return next(new AppError("Invalid credentials", 401))
   }
 
   // Generate token
-  const token = generateToken(user.id)
+  const token = generateToken(user._id)
 
   // Update last login
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { lastLogin: new Date() },
-  })
-
-  // Remove password from response
-  const { password: _, ...userWithoutPassword } = user
+  await user.updateLastLogin()
 
   res.status(200).json({
     success: true,
     message: "Login successful",
     data: {
-      user: userWithoutPassword,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        lastLogin: user.lastLogin,
+      },
       token,
     },
   })
@@ -130,24 +113,7 @@ export const login = asyncHandler(async (req, res, next) => {
 // @route   GET /api/auth/me
 // @access  Private
 export const getMe = asyncHandler(async (req, res, next) => {
-  const user = await prisma.user.findUnique({
-    where: { id: req.user.id },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-      avatar: true,
-      isActive: true,
-      lastLogin: true,
-      createdAt: true,
-      updatedAt: true,
-    },
-  })
-
-  if (!user) {
-    return next(new AppError("User not found", 404))
-  }
+  const user = await User.findById(req.user.id)
 
   res.status(200).json({
     success: true,
@@ -174,31 +140,20 @@ export const updatePassword = asyncHandler(async (req, res, next) => {
   const { currentPassword, newPassword } = req.body
 
   // Get user with password
-  const user = await prisma.user.findUnique({
-    where: { id: req.user.id },
-  })
-
-  if (!user) {
-    return next(new AppError("User not found", 404))
-  }
+  const user = await User.findById(req.user.id).select("+password")
 
   // Check current password
-  const isCurrentPasswordCorrect = await bcrypt.compare(currentPassword, user.password)
+  const isCurrentPasswordCorrect = await user.comparePassword(currentPassword)
   if (!isCurrentPasswordCorrect) {
     return next(new AppError("Current password is incorrect", 400))
   }
 
-  // Hash new password
-  const hashedNewPassword = await bcrypt.hash(newPassword, 10)
-
   // Update password
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { password: hashedNewPassword },
-  })
+  user.password = newPassword
+  await user.save()
 
   // Generate new token
-  const token = generateToken(user.id)
+  const token = generateToken(user._id)
 
   res.status(200).json({
     success: true,
