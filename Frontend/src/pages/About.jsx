@@ -142,11 +142,11 @@ const About = () => {
   ]
 
   const milestones = [
-    { year: "2023", title: "Project Inception", description: "GreenAVAX concept developed and team assembled" },
-    { year: "2024 Q1", title: "Platform Development", description: "Core platform built and beta testing initiated" },
-    { year: "2024 Q2", title: "Community Launch", description: "Public launch with initial community of 1,000 users" },
-    { year: "2024 Q3", title: "Token Launch", description: "GRAVAX token created and reward system activated" },
-    { year: "2024 Q4", title: "Global Expansion", description: "Platform scaled to 10,000+ users across 50 countries" },
+    { year: "2024", title: "Project Inception", description: "GreenAVAX concept developed and team assembled" },
+    { year: "2025 Q1", title: "Platform Development", description: "Core platform built and beta testing initiated" },
+    { year: "2025 Q2", title: "Community Launch", description: "Public launch with initial community of 1,000 users" },
+    { year: "2025 Q3", title: "Token Launch", description: "GRAVAX token created and reward system activated" },
+    { year: "2025 Q4", title: "Global Expansion", description: "Platform scaled to 10,000+ users across 50 countries" },
     { year: "2025", title: "Future Goals", description: "1M users, major partnerships, and measurable global impact" },
   ]
 
